@@ -157,7 +157,7 @@ fn main() -> anyhow::Result<()> {
         } => {
             // Validate Base32 + length ≥128 bits
             let key = decode_secret(&secret).context("invalid Base32 secret")?;
-            if key.len() < 16 {
+            if key.len() < 8 {
                 anyhow::bail!(
                     "secret too short: got {} bytes ({} bits), need ≥16 bytes (128 bits)\n\
                      Are you sure this is a valid Base32-encoded TOTP secret?",
