@@ -9,7 +9,6 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::PathBuf,
 };
-
 use totp_rs::{Algorithm, TOTP};
 
 #[derive(Parser)]
@@ -70,7 +69,6 @@ fn read_line_input(prompt: &str, default_val: &str) -> anyhow::Result<String> {
 fn decode_secret(s: &str) -> Result<Vec<u8>, anyhow::Error> {
     // Remove spaces and convert to uppercase
     let cleaned = s.replace(' ', "").to_uppercase();
-
     base32::decode(Alphabet::Rfc4648 { padding: true }, &cleaned)
         .or_else(|| base32::decode(Alphabet::Rfc4648 { padding: false }, &cleaned))
         .ok_or_else(|| anyhow!("invalid Base32 secret"))
@@ -148,7 +146,6 @@ fn warn_about_algorithm(algorithm: Algorithm) {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let service = "raptor";
-
     match cli.command {
         Commands::Add {
             account,
@@ -165,17 +162,14 @@ fn main() -> anyhow::Result<()> {
                     key.len() * 8
                 );
             }
-
             let mut digits = 6;
             let mut period = 30;
             let mut skew = 1;
             let mut algorithm_str = "sha1".to_string();
-
             if custom {
                 println!();
                 println!("Configuring TOTP for {} (custom)", account);
                 println!("-------------------------------------");
-
                 println!(
                     "Make sure your platform matches the chosen settings.\nIf you are unsure, press ENTER to use the default values.\n"
                 );
@@ -190,7 +184,7 @@ fn main() -> anyhow::Result<()> {
                             digits = d;
                             break;
                         }
-                        _ => println!("  [!] Invalid digits. Please enter 6 or 8."),
+                        _ => println!(" [!] Invalid digits. Please enter 6 or 8."),
                     }
                 }
                 // Period
@@ -204,7 +198,7 @@ fn main() -> anyhow::Result<()> {
                             period = p;
                             break;
                         }
-                        _ => println!("  [!] Invalid period. Please enter a positive number."),
+                        _ => println!(" [!] Invalid period. Please enter a positive number."),
                     }
                 }
                 // Skew
@@ -218,7 +212,7 @@ fn main() -> anyhow::Result<()> {
                             skew = s;
                             break;
                         }
-                        _ => println!("  [!] Invalid skew. Please enter a number."),
+                        _ => println!(" [!] Invalid skew. Please enter a number."),
                     }
                 }
                 // Algorithm
@@ -232,24 +226,21 @@ fn main() -> anyhow::Result<()> {
                             algorithm_str = input;
                             break;
                         }
-                        Err(e) => println!("  [!] {}", e),
+                        Err(e) => println!(" [!] {}", e),
                     }
                 }
                 println!();
             }
-
             // Store the secret and all parameters in a single string in the keyring
             // Format: "secret_base32:algo_name:digits:period:skew"
             let stored_value = format!(
                 "{}:{}:{}:{}:{}",
                 secret, algorithm_str, digits, period, skew
             );
-
             Entry::new(service, &account)?
                 .set_password(&stored_value)
                 .context("writing secret to keyring")?;
             index_add(&account).context("updating account index")?;
-
             println!("TOTP set for {}:", account);
             println!("- Digits: {}", digits);
             println!("- Period: {} sec", period);
@@ -273,9 +264,7 @@ fn main() -> anyhow::Result<()> {
                 // If --uri is provided, use it directly (all parameters are derived from URI)
                 let totp = TOTP::from_url(&uri_str)
                     .with_context(|| format!("parsing otpauth:// URI for account '{}'", account))?;
-
                 warn_about_algorithm(totp.algorithm);
-
                 let code = totp
                     .generate_current()
                     .context("generating code from URI")?;
@@ -285,7 +274,6 @@ fn main() -> anyhow::Result<()> {
                 let stored_value = Entry::new(service, &account)?
                     .get_password()
                     .context("no secret found for that account. Add it first, or use --uri.")?;
-
                 // Parse the stored value back into secret and parameters
                 let parts: Vec<&str> = stored_value.split(':').collect();
                 if parts.len() != 5 {
@@ -295,17 +283,14 @@ fn main() -> anyhow::Result<()> {
                         account
                     );
                 }
-
                 let s_secret_str = parts[0];
                 let algorithm_str = parts[1].to_string();
                 let digits: usize = parts[2].parse().context("invalid stored digits")?;
                 let period: u64 = parts[3].parse().context("invalid stored period")?;
                 let skew: u8 = parts[4].parse().context("invalid stored skew")?;
-
                 // Decode the secret bytes
                 let secret_bytes =
                     decode_secret(s_secret_str).context("invalid Base32 secret in keyring")?;
-
                 // Validate parameters (should be valid if added correctly, but good for defensive programming)
                 if digits != 6 && digits != 8 {
                     anyhow::bail!("Invalid stored digits: {}. Must be 6 or 8.", digits);
@@ -314,12 +299,8 @@ fn main() -> anyhow::Result<()> {
                     anyhow::bail!("Invalid stored period: {}. Must be greater than 0.", period);
                 }
                 let algo = parse_algo(&algorithm_str)?; // Validate algorithm string
-
                 warn_about_algorithm(algo); // Warn for loaded algo
-
-                // For totp-rs 5.7.0, the signature is:
-                // TOTP::new(algorithm, digits, skew, period, secret, account_name, issuer)
-                let totp = TOTP::new(
+                let totp = TOTP::new_unchecked(
                     algo,
                     digits,
                     skew,
@@ -327,13 +308,11 @@ fn main() -> anyhow::Result<()> {
                     secret_bytes,
                     Some(account.clone()),
                     "Raptor".to_string(),
-                )
-                .context("configuring TOTP")?;
+                );
                 let code = totp.generate_current().context("generating code")?;
                 println!("Code for {}: {}", account, code);
             }
         }
     }
-
     Ok(())
 }
