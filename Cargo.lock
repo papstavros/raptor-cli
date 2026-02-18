@@ -1304,7 +1304,7 @@ dependencies = [
 
 [[package]]
 name = "raptor-cli"
-version = "0.1.9"
+version = "0.1.91"
 dependencies = [
  "anyhow",
  "base32",
